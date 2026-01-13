@@ -37,11 +37,8 @@ export function useCamera() {
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
       streamRef.current = stream;
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        setState(prev => ({ ...prev, isActive: true }));
-      }
+      // Set isActive first to render the video element, then attach stream
+      setState(prev => ({ ...prev, isActive: true }));
     } catch (err) {
       const error = err instanceof Error ? err.message : 'Не вдалося отримати доступ до камери';
       setState(prev => ({ ...prev, error, isActive: false }));
@@ -69,6 +66,31 @@ export function useCamera() {
       setTimeout(() => startCamera(), 100);
     }
   }, [state.facingMode, state.isActive, startCamera, stopCamera]);
+
+  // Attach stream to video element when both are available
+  useEffect(() => {
+    if (!state.isActive || !streamRef.current) return;
+
+    // Use a small timeout to ensure the video element is mounted after state change
+    const timeoutId = setTimeout(() => {
+      const video = videoRef.current;
+      const stream = streamRef.current;
+
+      if (video && stream) {
+        video.srcObject = stream;
+        video.play().catch(err => {
+          console.error('Video play error:', err);
+          setState(prev => ({
+            ...prev,
+            error: 'Не вдалося відтворити відео',
+            isActive: false
+          }));
+        });
+      }
+    }, 50);
+
+    return () => clearTimeout(timeoutId);
+  }, [state.isActive]);
 
   useEffect(() => {
     return () => {
